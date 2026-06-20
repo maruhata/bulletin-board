@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>掲示板</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+      background: #f0f2f5;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    header {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 1.5rem 2rem;
+      box-shadow: 0 2px 12px rgba(102, 126, 234, 0.4);
+    }
+
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+
+    header p {
+      font-size: 0.85rem;
+      opacity: 0.85;
+      margin-top: 0.25rem;
+    }
+
+    .container {
+      max-width: 720px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+    }
+
+    /* 投稿フォーム */
+    .post-form {
+      background: white;
+      border-radius: 16px;
+      padding: 1.5rem;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+      margin-bottom: 2rem;
+    }
+
+    .post-form h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #667eea;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+
+    .form-row input {
+      flex: 1;
+    }
+
+    input[type="text"],
+    textarea {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      outline: none;
+      background: #fafafa;
+    }
+
+    input[type="text"]:focus,
+    textarea:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+      background: white;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 100px;
+    }
+
+    .submit-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      width: 100%;
+      padding: 0.85rem;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.1s;
+      margin-top: 0.25rem;
+    }
+
+    .submit-btn:hover { opacity: 0.92; }
+    .submit-btn:active { transform: scale(0.98); }
+    .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* メッセージ一覧 */
+    .messages-section h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #4a5568;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    #messages-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+    }
+
+    .message-card {
+      background: white;
+      border-radius: 14px;
+      padding: 1.2rem 1.5rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      border-left: 4px solid #667eea;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .message-header {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #667eea, #764ba2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 0.9rem;
+      flex-shrink: 0;
+    }
+
+    .author-name {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: #2d3748;
+    }
+
+    .timestamp {
+      margin-left: auto;
+      font-size: 0.78rem;
+      color: #a0aec0;
+    }
+
+    .message-content {
+      font-size: 0.95rem;
+      line-height: 1.65;
+      color: #4a5568;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* 状態表示 */
+    .status-msg {
+      text-align: center;
+      padding: 2rem;
+      color: #a0aec0;
+      font-size: 0.95rem;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #2d3748;
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: 999px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+      transition: transform 0.3s ease;
+      z-index: 999;
+      white-space: nowrap;
+    }
+
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.error { background: #e53e3e; }
+    .toast.success { background: #38a169; }
+
+    .count-badge {
+      background: #667eea;
+      color: white;
+      border-radius: 999px;
+      padding: 0.1rem 0.55rem;
+      font-size: 0.75rem;
+      font-weight: 700;
+    }
+
+    .refresh-btn {
+      background: none;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.8rem;
+      color: #667eea;
+      cursor: pointer;
+      margin-left: auto;
+      transition: background 0.2s;
+    }
+
+    .refresh-btn:hover { background: #f0f2ff; }
+
+    .messages-header-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+
+    .loading-spinner {
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border: 2.5px solid #e2e8f0;
+      border-top-color: #667eea;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>📋 掲示板</h1>
+  <p>メッセージを自由に投稿してください</p>
+</header>
+
+<div class="container">
+
+  <!-- 投稿フォーム -->
+  <div class="post-form">
+    <h2>✏️ 新しい投稿</h2>
+    <div class="form-row">
+      <input type="text" id="author" placeholder="名前（任意）" maxlength="30">
+    </div>
+    <textarea id="content" placeholder="メッセージを入力..." maxlength="1000"></textarea>
+    <button class="submit-btn" id="submit-btn" onclick="postMessage()">
+      投稿する
+    </button>
+  </div>
+
+  <!-- メッセージ一覧 -->
+  <div class="messages-section">
+    <div class="messages-header-row">
+      <h2>
+        💬 投稿一覧
+        <span class="count-badge" id="count-badge">0</span>
+      </h2>
+      <button class="refresh-btn" onclick="loadMessages()">🔄 更新</button>
+    </div>
+    <div id="messages-list">
+      <div class="status-msg"><span class="loading-spinner"></span> 読み込み中...</div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // Supabase 設定
+  const SUPABASE_URL = 'https://kcfnhhcoasgculonbbtx.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_JU-uguITndR8dzhEsXFCvw_nmWGu-wq';
+
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  // テーブルの実際のカラム名を保持
+  let detectedContentCol = null;
+  let detectedAuthorCol = null;
+
+  // トースト通知
+  function showToast(msg, type = '') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast ' + type;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 3000);
+  }
+
+  // 日時フォーマット
+  function formatDate(iso) {
+    const d = new Date(iso);
+    const now = new Date();
+    const diff = (now - d) / 1000;
+    if (diff < 60) return 'たった今';
+    if (diff < 3600) return `${Math.floor(diff/60)}分前`;
+    if (diff < 86400) return `${Math.floor(diff/3600)}時間前`;
+    return d.toLocaleDateString('ja-JP', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  // アバター文字
+  function avatarChar(name) {
+    return name ? name[0].toUpperCase() : '?';
+  }
+
+  // メッセージ一覧を取得・表示
+  async function loadMessages() {
+    const list = document.getElementById('messages-list');
+    list.innerHTML = '<div class="status-msg"><span class="loading-spinner"></span> 読み込み中...</div>';
+
+    const { data, error } = await db
+      .from('messages')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(100);
+
+    if (error) {
+      console.error(error);
+      list.innerHTML = `<div class="status-msg">⚠️ 読み込みに失敗しました<br><small>${error.message}</small></div>`;
+      return;
+    }
+
+    document.getElementById('count-badge').textContent = data.length;
+
+    if (data.length === 0) {
+      list.innerHTML = '<div class="status-msg">まだ投稿がありません。最初の投稿をしてみましょう！</div>';
+      return;
+    }
+
+    // 最初のデータからカラム名を自動検出
+    if (data.length > 0) {
+      const keys = Object.keys(data[0]);
+      detectedContentCol = keys.find(k => ['content','body','message','text','post','msg'].includes(k)) || null;
+      detectedAuthorCol  = keys.find(k => ['author','name','username','user','nickname'].includes(k)) || null;
+      console.log('検出カラム:', { content: detectedContentCol, author: detectedAuthorCol, all: keys });
+    }
+
+    list.innerHTML = data.map(msg => {
+      const author = (detectedAuthorCol && msg[detectedAuthorCol]) || '名無し';
+      const content = (detectedContentCol && msg[detectedContentCol]) || '';
+      const createdAt = msg.created_at;
+      return `
+        <div class="message-card">
+          <div class="message-header">
+            <div class="avatar">${avatarChar(author)}</div>
+            <span class="author-name">${escapeHtml(author)}</span>
+            <span class="timestamp">${formatDate(createdAt)}</span>
+          </div>
+          <div class="message-content">${escapeHtml(content)}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // 投稿送信
+  async function postMessage() {
+    const authorEl = document.getElementById('author');
+    const contentEl = document.getElementById('content');
+    const btn = document.getElementById('submit-btn');
+
+    const author = authorEl.value.trim() || '名無し';
+    const content = contentEl.value.trim();
+
+    if (!content) {
+      showToast('メッセージを入力してください', 'error');
+      contentEl.focus();
+      return;
+    }
+
+    if (!detectedContentCol) {
+      showToast('テーブル構造を取得中です。しばらく待ってから再試行してください。', 'error');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = '投稿中...';
+
+    const row = { [detectedContentCol]: content };
+    if (detectedAuthorCol) row[detectedAuthorCol] = author;
+
+    const { error } = await db
+      .from('messages')
+      .insert([row]);
+
+    btn.disabled = false;
+    btn.textContent = '投稿する';
+
+    if (error) {
+      console.error(error);
+      showToast('投稿に失敗しました: ' + error.message, 'error');
+      return;
+    }
+
+    contentEl.value = '';
+    showToast('投稿しました！', 'success');
+    await loadMessages();
+  }
+
+  // Enterキーで送信（Shift+Enterで改行）
+  document.getElementById('content').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      postMessage();
+    }
+  });
+
+  // XSSエスケープ
+  function escapeHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  // リアルタイム購読
+  db.channel('messages-channel')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, () => {
+      loadMessages();
+    })
+    .subscribe();
+
+  // 初回ロード
+  loadMessages();
+</script>
+
+</body>
+</html>
