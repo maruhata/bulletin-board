@@ -307,8 +307,8 @@
   const { createClient } = supabase;
   const db = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  // テーブルの実際のカラム名を保持
-  let detectedContentCol = null;
+  // テーブルの実際のカラム名を保持（作成したテーブルに合わせてデフォルト設定）
+  let detectedContentCol = 'content';
   let detectedAuthorCol = null;
 
   // トースト通知
